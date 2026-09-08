@@ -1,0 +1,110 @@
+{
+  "Kanjivaram Silks": {
+    "table_id": 948083,
+    "generation_status_field_id": 8253052,
+    "shopify_notes_field_id": 8253055,
+    "generated_front_field_id": 8253051
+  },
+  "Pure Silk Sarees": {
+    "table_id": 935204,
+    "generation_status_field_id": 8123033,
+    "shopify_notes_field_id": 8123036,
+    "generated_front_field_id": 8123032
+  },
+  "Tussar Silk Saree": {
+    "table_id": 948245,
+    "generation_status_field_id": 8254631,
+    "shopify_notes_field_id": 8254634,
+    "generated_front_field_id": 8254630
+  },
+  "South Weaves - South Silk Sarees": {
+    "table_id": 935205,
+    "generation_status_field_id": 8123050,
+    "shopify_notes_field_id": 8123053,
+    "generated_front_field_id": 8123049
+  },
+  "Soft Silk Sarees": {
+    "table_id": 935207,
+    "generation_status_field_id": 8123084,
+    "shopify_notes_field_id": 8123087,
+    "generated_front_field_id": 8123083
+  },
+  "Patola & Orissa Silk Sarees": {
+    "table_id": 935208,
+    "generation_status_field_id": 8123101,
+    "shopify_notes_field_id": 8123104,
+    "generated_front_field_id": 8123100
+  },
+  "Printed Pure Silk Sarees": {
+    "table_id": 935203,
+    "generation_status_field_id": 8123016,
+    "shopify_notes_field_id": 8123019,
+    "generated_front_field_id": 8123015
+  },
+  "Cotton Silk Sarees": {
+    "table_id": 935215,
+    "generation_status_field_id": 8123220,
+    "shopify_notes_field_id": 8123223,
+    "generated_front_field_id": 8123219
+  },
+  "Paithani Silk Sarees": {
+    "table_id": 935206,
+    "generation_status_field_id": 8123067,
+    "shopify_notes_field_id": 8123070,
+    "generated_front_field_id": 8123066
+  },
+  "Banarasi Silk Sarees": {
+    "table_id": 935210,
+    "generation_status_field_id": 8123135,
+    "shopify_notes_field_id": 8123138,
+    "generated_front_field_id": 8123134
+  },
+  "Banarasi Georgette Silk Sarees": {
+    "table_id": 935209,
+    "generation_status_field_id": 8123118,
+    "shopify_notes_field_id": 8123121,
+    "generated_front_field_id": 8123117
+  },
+  "Banarasi Kora Silk Saree": {
+    "table_id": 935211,
+    "generation_status_field_id": 8123152,
+    "shopify_notes_field_id": 8123155,
+    "generated_front_field_id": 8123151
+  },
+  "Gadwal Handloom": {
+    "table_id": 935213,
+    "generation_status_field_id": 8123186,
+    "shopify_notes_field_id": 8123189,
+    "generated_front_field_id": 8123185
+  },
+  "Jamawar Silk Sarees": {
+    "table_id": 935214,
+    "generation_status_field_id": 8123203,
+    "shopify_notes_field_id": 8123206,
+    "generated_front_field_id": 8123202
+  },
+  "Cotton Saree": {
+    "table_id": 935216,
+    "generation_status_field_id": 8123237,
+    "shopify_notes_field_id": 8123240,
+    "generated_front_field_id": 8123236
+  },
+  "Linen & Kota Silk Sarees": {
+    "table_id": 935217,
+    "generation_status_field_id": 8123254,
+    "shopify_notes_field_id": 8123257,
+    "generated_front_field_id": 8123253
+  },
+  "Art Silk Sarees": {
+    "table_id": 935218,
+    "generation_status_field_id": 8123271,
+    "shopify_notes_field_id": 8123274,
+    "generated_front_field_id": 8123270
+  },
+  "Bandhani Silk Saree": {
+    "table_id": 935212,
+    "generation_status_field_id": 8123169,
+    "shopify_notes_field_id": 8123172,
+    "generated_front_field_id": 8123168
+  }
+}

@@ -1,0 +1,63 @@
+{
+  "database_id": 419522,
+  "table_id": 1076991,
+  "table_name": "Upload Saree",
+  "vendor": "Janardhana Silk House",
+  "product_type": "Saree",
+  "status": "ACTIVE",
+  "default_shopify_taxonomy": {
+    "id": "gid://shopify/TaxonomyCategory/aa-1-23-2-1",
+    "name": "Saris",
+    "full_name": "Apparel & Accessories > Clothing > Traditional & Ceremonial Clothing > Saris & Lehengas > Saris"
+  },
+  "field_ids": {
+    "Product Title": 9535465,
+    "Product Code": 9535466,
+    "Category": 9535467,
+    "Price": 9535468,
+    "Saree Image": 9535469,
+    "Blouse Image": 9535470,
+    "Generation Status": 9535471,
+    "Comment / Notes": 9535472,
+    "Front View": 9535578,
+    "Back View": 9535579,
+    "Side View": 9535580,
+    "Close-Up": 9535581,
+    "Pallu Image": 9626173,
+    "Border Image": 9626175,
+    "Descriptions": 9626178,
+    "catalog": 9790891,
+    "Pallu Detail 1": 9791209,
+    "Pallu Detail 2": 9791210,
+    "Body Detail": 9791218,
+    "Border Detail": 9791283,
+    "SHOPIFY Notes": 9801901,
+    "BlouseGrid": 9902236
+  },
+  "image_order": [
+    "Front View",
+    "Back View",
+    "Side View",
+    "Close-Up",
+    "BlouseGrid",
+    "Blouse Image",
+    "Pallu Image",
+    "Border Image"
+  ],
+  "media_fields": [
+    {"field_name": "Front View", "field_id": 9535578, "role": "front_view", "required": true, "multiple": true},
+    {"field_name": "Back View", "field_id": 9535579, "role": "back_view", "required": false, "multiple": true},
+    {"field_name": "Side View", "field_id": 9535580, "role": "side_view", "required": false, "multiple": true},
+    {"field_name": "Close-Up", "field_id": 9535581, "role": "close_up", "required": false, "multiple": true},
+    {
+      "field_name": "BlouseGrid",
+      "field_id": 9902236,
+      "role": "blouse_grid",
+      "required": false,
+      "multiple": true
+    },
+    {"field_name": "Blouse Image", "field_id": 9535470, "role": "blouse_image", "required": false, "multiple": true},
+    {"field_name": "Pallu Image", "field_id": 9626173, "role": "pallu_image", "required": false, "multiple": true},
+    {"field_name": "Border Image", "field_id": 9626175, "role": "border_image", "required": false, "multiple": true}
+  ]
+}

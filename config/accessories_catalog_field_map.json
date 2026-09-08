@@ -1,0 +1,52 @@
+{
+  "Men Accessories": {
+    "table_id": 936098,
+    "generation_status_field_id": 8133054,
+    "shopify_notes_field_id": 8133057,
+    "comment_field_id": 8133056,
+    "generated_front_field_id": 8133053,
+    "group": "Accessories",
+    "subcategory": "Men Accessories",
+    "display_name": "Men Tie"
+  },
+  "Dupattas": {
+    "table_id": 936099,
+    "generation_status_field_id": 8133069,
+    "shopify_notes_field_id": 8133072,
+    "comment_field_id": 8133070,
+    "group": "Accessories",
+    "subcategory": "Dupattas"
+  },
+  "Designer Blouses": {
+    "table_id": 936100,
+    "generation_status_field_id": 8133084,
+    "shopify_notes_field_id": 8133087,
+    "comment_field_id": 8133086,
+    "group": "Accessories",
+    "subcategory": "Designer Blouses"
+  },
+  "Shawls": {
+    "table_id": 936101,
+    "generation_status_field_id": 8133109,
+    "shopify_notes_field_id": 8133115,
+    "comment_field_id": 8133113,
+    "group": "Accessories",
+    "subcategory": "Shawls"
+  },
+  "Silk Scarves": {
+    "table_id": 936102,
+    "generation_status_field_id": 8133130,
+    "shopify_notes_field_id": 8133133,
+    "comment_field_id": 8133132,
+    "group": "Accessories",
+    "subcategory": "Silk Scarves"
+  },
+  "Silk Stoles": {
+    "table_id": 936103,
+    "generation_status_field_id": 8133145,
+    "shopify_notes_field_id": 8133148,
+    "comment_field_id": 8133147,
+    "group": "Accessories",
+    "subcategory": "Silk Stoles"
+  }
+}

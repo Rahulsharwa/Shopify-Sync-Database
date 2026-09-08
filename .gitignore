@@ -1,0 +1,16 @@
+.env
+Input/.env
+__pycache__/
+*.py[cod]
+.venv/
+env/
+.pytest_cache/
+.coverage
+htmlcov/
+temp/
+logs/*
+output/*
+!output/.gitkeep
+!logs/.gitkeep
+*.tmp
+*.bak

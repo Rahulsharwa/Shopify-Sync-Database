@@ -1,0 +1,65 @@
+{
+  "database_id": 419522,
+  "table_id": 936098,
+  "table_name": "Men Accessories",
+  "vendor": "Janardhana Silk House",
+  "product_type": "Men Accessories",
+  "reference_product_gid": "gid://shopify/Product/8859324547270",
+  "reference_product_legacy_id": "8859324547270",
+  "reference_product_url": "https://www.janardhanasilk.com/collections/men-accessories/products/exclusive-printed-pure-silk-tie-ae202782",
+  "primary_collection_title": "Men's Ties",
+  "default_shopify_taxonomy": {
+    "id": "",
+    "name": "",
+    "full_name": ""
+  },
+  "field_ids": {
+    "Product Title": 8133045,
+    "Product Code": 8133024,
+    "Category": 8133047,
+    "Price": 8133048,
+    "Tie Image": 8133049,
+    "Generation Status": 8133054,
+    "Generation Prompt": 8133055,
+    "Comment": 8133056,
+    "SHOPIFY Notes": 8133057,
+    "Shopify Status": 8133058,
+    "Shopify Product URL": 8133059,
+    "Generated Front View": 9684129,
+    "Rolled Tie Hero View": 9684125,
+    "Diagonal Close-Up Detail View": 9684126,
+    "Opened Back Construction View": 9684127,
+    "Full-Length Front Flat-Lay View": 9684129,
+    "Descriptions": 8133046
+  },
+  "required_field_names": [
+    "Product Title",
+    "Product Code",
+    "Price",
+    "Generation Status",
+    "SHOPIFY Notes"
+  ],
+  "generated_image_aliases": {
+    "Generated Front View": [
+      "Generated Front View",
+      "Front View",
+      "Full-Length Front Flat-Lay View",
+      "field_8133053",
+      "field_9684129"
+    ]
+  },
+  "image_order": [
+    "Rolled Tie Hero View",
+    "Diagonal Close-Up Detail View",
+    "Opened Back Construction View",
+    "Full-Length Front Flat-Lay View",
+    "Tie Image"
+  ],
+  "featured_image_fallback_order": [
+    "Rolled Tie Hero View",
+    "Full-Length Front Flat-Lay View",
+    "Tie Image",
+    "Diagonal Close-Up Detail View",
+    "Opened Back Construction View"
+  ]
+}

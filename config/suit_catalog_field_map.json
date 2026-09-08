@@ -1,0 +1,12 @@
+{
+  "Cotton Suits": {
+    "table_id": 936059,
+    "generation_status_field_id": 8132747,
+    "shopify_notes_field_id": 8132750
+  },
+  "Silk Suits": {
+    "table_id": 936060,
+    "generation_status_field_id": 8132764,
+    "shopify_notes_field_id": 8132767
+  }
+}

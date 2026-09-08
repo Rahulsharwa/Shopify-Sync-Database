@@ -1,0 +1,214 @@
+{
+  "_comment": "Canonical Upload Saree taxonomy. Matching uses only canonical names and explicit aliases; Shopify collection IDs were verified against the store on 2026-09-03.",
+  "taxonomy_version": 2,
+  "taxonomy": [
+    {
+      "canonical_name": "Banarasi Silk",
+      "parent_group": "Banarasi",
+      "aliases": ["Banarasi silk", "Banarasi Silk Saree", "Banarasi silk saree", "Banarasi Silk Sarees", "Banarasi"],
+      "shopify_collection_id": "gid://shopify/Collection/339548438726",
+      "shopify_collection_title": "Banarasi Sarees",
+      "primary_tag": "Banarasi Silk"
+    },
+    {
+      "canonical_name": "Cotton Banarasi",
+      "parent_group": "Banarasi",
+      "aliases": ["Banarasi Cotton", "Cotton Banarasi Saree", "Cotton Banarasi Sarees"],
+      "shopify_collection_id": "gid://shopify/Collection/343283925190",
+      "shopify_collection_title": "Cotton Banarasi Saree",
+      "primary_tag": "Cotton Banarasi"
+    },
+    {
+      "canonical_name": "Banarasi Georgette",
+      "parent_group": "Banarasi",
+      "aliases": ["Banarasi Georgette Saree", "Banarasi Georgette Sarees", "Georgette Banarasi", "Banarasi Georgette Silk Sarees"],
+      "shopify_collection_id": "gid://shopify/Collection/339879362758",
+      "shopify_collection_title": "Banarasi Georgette Saree",
+      "primary_tag": "Banarasi Georgette"
+    },
+    {
+      "canonical_name": "Banarasi Kora",
+      "parent_group": "Banarasi",
+      "aliases": ["Banarasi Kora Saree", "Banarasi Kora Silk", "Banarasi Kora Silk Saree"],
+      "shopify_collection_id": "gid://shopify/Collection/343287496902",
+      "shopify_collection_title": "Banarasi Kora Silk Sarees",
+      "primary_tag": "Banarasi Kora"
+    },
+    {
+      "canonical_name": "Banarasi Bridal",
+      "parent_group": "Banarasi",
+      "aliases": ["Bridal Banarasi", "Banarasi Bridal Saree", "Bridal Banarasi Saree"],
+      "shopify_collection_id": "gid://shopify/Collection/343283957958",
+      "shopify_collection_title": "Banarasi Bridal Saree",
+      "primary_tag": "Banarasi Bridal"
+    },
+    {
+      "canonical_name": "Pure Kanjeevaram",
+      "parent_group": "Kanjeevaram",
+      "aliases": ["Pure Kanjeevaram Saree", "Pure Kanjeevaram Sarees", "Kanjeevaram", "Kanjeevaram Saree", "Kanjivaram", "Kanjivaram Saree", "Pure Kanjivaram", "Pure Kanjivaram Saree", "Kanjivaram Silks", "Kanjivaram silk"],
+      "shopify_collection_id": "gid://shopify/Collection/339548373190",
+      "shopify_collection_title": "Kanjivaram Sarees",
+      "primary_tag": "Pure Kanjeevaram"
+    },
+    {
+      "canonical_name": "Bridal Kanjeevaram",
+      "parent_group": "Kanjeevaram",
+      "aliases": ["Bridal Kanjeevaram Saree", "Bridal Kanjivaram", "Bridal Kanjivaram Saree", "Kanjeevaram Bridal"],
+      "shopify_collection_id": "gid://shopify/Collection/346502070470",
+      "shopify_collection_title": "Kanjeevaram Bridal Saree",
+      "primary_tag": "Bridal Kanjeevaram"
+    },
+    {
+      "canonical_name": "Wedding Kanchipuram",
+      "parent_group": "Kanjeevaram",
+      "aliases": ["Wedding Kanchipuram Saree", "Kanchipuram Wedding", "Wedding Kanjeevaram", "Wedding Kanjivaram"],
+      "shopify_collection_id": null,
+      "shopify_collection_title": "Wedding Kanchipuram",
+      "primary_tag": "Wedding Kanchipuram"
+    },
+    {
+      "canonical_name": "Gadwal Sarees",
+      "parent_group": "Regional & Handloom",
+      "aliases": ["Gadwal Saree", "Gadwal", "Gadwal Silk", "Gadwal Silk Saree", "Gadwal Handloom"],
+      "shopify_collection_id": "gid://shopify/Collection/343283990726",
+      "shopify_collection_title": "Gadwal Sarees",
+      "primary_tag": "Gadwal Sarees"
+    },
+    {
+      "canonical_name": "Ikat / Pochampally",
+      "parent_group": "Regional & Handloom",
+      "aliases": ["Ikat/Pochampally", "Ikat Pochampally", "Pochampally", "Pochampally Saree", "Pochampally Ikat", "Ikat Saree"],
+      "shopify_collection_id": "gid://shopify/Collection/343284023494",
+      "shopify_collection_title": "Patola / Pochampally Sarees",
+      "primary_tag": "Ikat / Pochampally"
+    },
+    {
+      "canonical_name": "Patola & Orissa Silk",
+      "parent_group": "Regional & Handloom",
+      "aliases": ["Patola and Orissa Silk", "Patola & Orissa", "Patola Orissa Silk", "Patola Silk", "Orissa Silk", "Patola & Orissa Silk Sarees", "Patola and Orissa Silk Sarees"],
+      "shopify_collection_id": "gid://shopify/Collection/343287464134",
+      "shopify_collection_title": "Patola and Orissa Silk Sarees",
+      "primary_tag": "Patola & Orissa Silk"
+    },
+    {
+      "canonical_name": "South Silk Sarees",
+      "parent_group": "Regional & Handloom",
+      "aliases": ["South Silk", "South Silk Saree", "South Weaves", "South Weaves Saree", "South Weaves - South Silk Sarees"],
+      "shopify_collection_id": "gid://shopify/Collection/343287300294",
+      "shopify_collection_title": "South Weaves - South Silk Sarees",
+      "primary_tag": "South Silk Sarees"
+    },
+    {
+      "canonical_name": "Mysore Crepe Sarees",
+      "parent_group": "Regional & Handloom",
+      "aliases": ["Mysore Crepe", "Mysore Crepe Saree", "Mysore Crepe Silk"],
+      "shopify_collection_id": "gid://shopify/Collection/343284089030",
+      "shopify_collection_title": "Mysore Crepe Sarees",
+      "primary_tag": "Mysore Crepe Sarees"
+    },
+    {
+      "canonical_name": "Pure Silk Sarees",
+      "parent_group": "Pure & Designer Silks",
+      "aliases": ["Pure Silk", "Pure Silk Saree"],
+      "shopify_collection_id": "gid://shopify/Collection/343287267526",
+      "shopify_collection_title": "Pure Silk Sarees",
+      "primary_tag": "Pure Silk Sarees"
+    },
+    {
+      "canonical_name": "Soft Silk Sarees",
+      "parent_group": "Pure & Designer Silks",
+      "aliases": ["Soft Silk", "Soft Silk Saree"],
+      "shopify_collection_id": "gid://shopify/Collection/339879985350",
+      "shopify_collection_title": "Soft Silk Sarees",
+      "primary_tag": "Soft Silk Sarees"
+    },
+    {
+      "canonical_name": "Art Silk Sarees",
+      "parent_group": "Pure & Designer Silks",
+      "aliases": ["Art Silk", "Art Silk Saree"],
+      "shopify_collection_id": "gid://shopify/Collection/343287365830",
+      "shopify_collection_title": "Art Silk Sarees",
+      "primary_tag": "Art Silk Sarees"
+    },
+    {
+      "canonical_name": "Cotton Silk Sarees",
+      "parent_group": "Pure & Designer Silks",
+      "aliases": ["Cotton Silk", "Cotton Silk Saree"],
+      "shopify_collection_id": "gid://shopify/Collection/343287627974",
+      "shopify_collection_title": "Cotton Silk Sarees",
+      "primary_tag": "Cotton Silk Sarees"
+    },
+    {
+      "canonical_name": "Jamawar Silk Sarees",
+      "parent_group": "Pure & Designer Silks",
+      "aliases": ["Jamawar Silk", "Jamawar Silk Saree", "Jamawar Saree"],
+      "shopify_collection_id": "gid://shopify/Collection/343287595206",
+      "shopify_collection_title": "Jamawar Silk Sarees",
+      "primary_tag": "Jamawar Silk Sarees"
+    },
+    {
+      "canonical_name": "Paithani Silk Sarees",
+      "parent_group": "Pure & Designer Silks",
+      "aliases": ["Paithani", "Paithani Saree", "Paithani Silk", "Paithani Silk Saree"],
+      "shopify_collection_id": "gid://shopify/Collection/343287333062",
+      "shopify_collection_title": "Paithani Silk Sarees",
+      "primary_tag": "Paithani Silk Sarees"
+    },
+    {
+      "canonical_name": "Printed Silk Sarees",
+      "parent_group": "Printed & Everyday",
+      "aliases": ["Printed Silk", "Printed Silk Saree"],
+      "shopify_collection_id": "gid://shopify/Collection/339549126854",
+      "shopify_collection_title": "Printed Silk Sarees",
+      "primary_tag": "Printed Silk Sarees"
+    },
+    {
+      "canonical_name": "Printed Crepe Saree",
+      "parent_group": "Printed & Everyday",
+      "aliases": ["Printed Crepe", "Printed Crepe Sarees", "Crepe Printed Saree"],
+      "shopify_collection_id": "gid://shopify/Collection/343284154566",
+      "shopify_collection_title": "Printed Crepe Saree",
+      "primary_tag": "Printed Crepe Saree"
+    },
+    {
+      "canonical_name": "Printed Chiffon Saree",
+      "parent_group": "Printed & Everyday",
+      "aliases": ["Printed Chiffon", "Printed Chiffon Sarees", "Chiffon Printed Saree"],
+      "shopify_collection_id": "gid://shopify/Collection/343284220102",
+      "shopify_collection_title": "Printed Chiffon Saree",
+      "primary_tag": "Printed Chiffon Saree"
+    },
+    {
+      "canonical_name": "Printed Tussar Silk",
+      "parent_group": "Printed & Everyday",
+      "aliases": ["Printed Tussar", "Printed Tussar Saree", "Printed Tussar Silk Saree", "Printed Tussar Silk Sarees"],
+      "shopify_collection_id": "gid://shopify/Collection/343284318406",
+      "shopify_collection_title": "Printed Tussar Silk Saree",
+      "primary_tag": "Printed Tussar Silk"
+    },
+    {
+      "canonical_name": "Tussar Silk Saree",
+      "parent_group": "Printed & Everyday",
+      "aliases": ["Tussar silk", "Tussar Silk", "Tussar Saree", "Tussar Silk Sarees", "Tussar silk saree", "Tussar"],
+      "shopify_collection_id": "gid://shopify/Collection/343287201990",
+      "shopify_collection_title": "Tussar Silk Sarees",
+      "primary_tag": "Tussar Silk Saree"
+    },
+    {
+      "canonical_name": "Cotton Saree",
+      "parent_group": "Printed & Everyday",
+      "aliases": ["Cotton Sarees", "Cotton", "Pure Cotton Saree"],
+      "shopify_collection_id": "gid://shopify/Collection/339549356230",
+      "shopify_collection_title": "Cotton Sarees",
+      "primary_tag": "Cotton Saree"
+    },
+    {
+      "canonical_name": "Linen & Kota Silk",
+      "parent_group": "Printed & Everyday",
+      "aliases": ["Linen and Kota Silk", "Linen & Kota", "Linen Kota Silk", "Linen Saree", "Kota Silk", "Kota Silk Saree", "Linen & Kota Silk Sarees"],
+      "shopify_collection_id": "gid://shopify/Collection/343287234758",
+      "shopify_collection_title": "Linen and Silk Sarees",
+      "primary_tag": "Linen & Kota Silk"
+    }
+  ]
+}
