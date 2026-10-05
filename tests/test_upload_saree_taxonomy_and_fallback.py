@@ -91,8 +91,8 @@ def valid_ai_result() -> dict:
 class UploadSareeTaxonomyTests(unittest.TestCase):
     def test_all_requested_categories_resolve_exact_lowercase_and_whitespace(self) -> None:
         instance = make_creator()
-        # The supplied prompt says 25, but its five sections enumerate 26 names.
-        self.assertEqual(len(instance._taxonomy_entries), 26)
+        # The taxonomy now includes the Upload Saree Dupattas category.
+        self.assertEqual(len(instance._taxonomy_entries), 29)
         for entry in instance._taxonomy_entries:
             canonical = entry["canonical_name"]
             with self.subTest(canonical=canonical):
@@ -172,9 +172,9 @@ class UploadSareeTaxonomyTests(unittest.TestCase):
         ]
         instance.fetch_shopify_collections = Mock(return_value=nodes)
         validation = instance.validate_taxonomy_collections()
-        self.assertEqual(len(validation), 26)
+        self.assertEqual(len(validation), 29)
         self.assertEqual(
-            sum(record["Status"] == "resolved" for record in validation), 25
+            sum(record["Status"] == "resolved" for record in validation), 28
         )
         missing = [record for record in validation if record["Status"] != "resolved"]
         self.assertEqual(missing[0]["Canonical Category"], "Wedding Kanchipuram")

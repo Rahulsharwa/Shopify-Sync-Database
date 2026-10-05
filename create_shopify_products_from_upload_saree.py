@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+import concurrent.futures
 import hashlib
 import importlib.util
 import json
@@ -10,6 +11,7 @@ import re
 import shutil
 import sys
 import tempfile
+import threading
 import time
 import unicodedata
 import uuid
@@ -280,6 +282,19 @@ class UploadSareeCreator:
         self.sync_existing_media = env_bool(
             "SYNC_UPLOAD_SAREE_EXISTING_MEDIA", False
         )
+        self.fast_sync = env_bool("FAST_UPLOAD_SAREE_SYNC", False)
+        self.product_workers = self._worker_count("UPLOAD_SAREE_PRODUCT_WORKERS", 3)
+        self.ai_workers = self._worker_count("UPLOAD_SAREE_AI_WORKERS", 3)
+        self.media_workers = self._worker_count("UPLOAD_SAREE_MEDIA_WORKERS", 4)
+        self.baserow_workers = self._worker_count("UPLOAD_SAREE_BASEROW_WORKERS", 5)
+        self._sku_cache: dict[str, dict[str, Any] | None] = {}
+        self._duplicate_cache: dict[tuple[str, str, str], tuple[str, dict[str, Any] | None]] = {}
+        self._collection_id_cache: dict[str, str] = {}
+        self._media_cache: dict[str, list[dict[str, Any]]] = {}
+        self._cache_lock = threading.RLock()
+        self._sku_locks: dict[str, threading.Lock] = {}
+        self._checkpoint_path = OUTPUT / "upload_saree_sync_checkpoint.json"
+        self._prefetched_ai: dict[str, dict[str, Any]] = {}
         self.product_creation_allowed = not self.sync_existing_media
         self.logger = setup_logger(
             "upload_saree_existing_media_sync"
@@ -312,6 +327,9 @@ class UploadSareeCreator:
         self.audit_taxonomy = env_bool("AUDIT_UPLOAD_SAREE_TAXONOMY", False)
         self.dry_run = env_bool("DRY_RUN", True)
         self.enabled = env_bool("CREATE_PRODUCTS_FROM_UPLOAD_SAREE", False)
+        self.category_filter = self.normalize_category_key(
+            os.getenv("UPLOAD_SAREE_CATEGORY_FILTER", "")
+        )
         self.write_comments = env_bool("WRITE_BASEROW_COMMENTS", True)
         self.use_image_input = env_bool("USE_OPENROUTER_IMAGE_INPUT", True)
         # MAX_PRODUCTS is a run-control switch, not a persisted application
@@ -391,6 +409,35 @@ class UploadSareeCreator:
             if value:
                 return name, value
         return "none", ""
+
+    @staticmethod
+    def _worker_count(name: str, default: int) -> int:
+        try:
+            value = int(os.getenv(name, str(default)))
+        except ValueError as exc:
+            raise ValueError(f"{name} must be a positive integer") from exc
+        if value < 1 or value > 8:
+            raise ValueError(f"{name} must be between 1 and 8")
+        return value
+
+    def _sku_lock(self, sku: str) -> threading.Lock:
+        self._ensure_runtime_caches()
+        with self._cache_lock:
+            return self._sku_locks.setdefault(sku.casefold(), threading.Lock())
+
+    def _ensure_runtime_caches(self) -> None:
+        if not hasattr(self, "_cache_lock"):
+            self._cache_lock = threading.RLock()
+        if not hasattr(self, "_collection_id_cache"):
+            self._collection_id_cache = {}
+        if not hasattr(self, "_duplicate_cache"):
+            self._duplicate_cache = {}
+        if not hasattr(self, "_sku_cache"):
+            self._sku_cache = {}
+        if not hasattr(self, "_media_cache"):
+            self._media_cache = {}
+        if not hasattr(self, "_sku_locks"):
+            self._sku_locks = {}
 
     def load_operational_settings(self) -> None:
         self.product_status = os.getenv(
@@ -716,6 +763,24 @@ class UploadSareeCreator:
         actual = self.fields[name]["name"]
         return row.get(actual)
 
+    def resolve_inventory_quantity(
+        self, row: dict[str, Any] | None
+    ) -> tuple[int, str, str]:
+        """Resolve safe per-row inventory quantity without shared mutable state."""
+        if row is None or "Quantity Score" not in self.fields:
+            return int(getattr(self, "inventory_quantity", 1)), "global_default", ""
+        raw = self.row_value(row, "Quantity Score")
+        text = visible(raw)
+        if not text:
+            return 1, "blank_default", "Quantity Score blank; defaulted to 1"
+        try:
+            value = Decimal(text.replace(",", ""))
+        except (InvalidOperation, ValueError):
+            return 1, "invalid_default", f"Quantity Score {text!r} invalid; defaulted to 1"
+        if value <= 0 or value != value.to_integral_value():
+            return 1, "invalid_default", f"Quantity Score {text!r} must be a positive integer; defaulted to 1"
+        return int(value), "row_value", ""
+
     def images(self, row: dict[str, Any]) -> list[dict[str, Any]]:
         result: list[dict[str, Any]] = []
         seen: set[tuple[str, str]] = set()
@@ -927,6 +992,8 @@ class UploadSareeCreator:
         return f"{sku} - {label}"
 
     def existing_media_row_skip_reason(self, row: dict[str, Any]) -> str:
+        if not self.category_filter_ok(row):
+            return "Category does not match configured filter"
         generation_status = status(self.row_value(row, "Generation Status"))
         if generation_status != "approved":
             return "Generation Status is not Approved"
@@ -1173,6 +1240,36 @@ class UploadSareeCreator:
             status(self.row_value(row, "Generation Status")) == "approved"
             and status(self.row_value(row, "SHOPIFY Notes")) == "approved"
         )
+
+    def category_filter_ok(self, row: dict[str, Any]) -> bool:
+        """Restrict a run to one canonical category when explicitly requested."""
+        wanted = visible(getattr(self, "category_filter", ""))
+        if not wanted:
+            return True
+        raw = self.row_category_value(row)
+        canonical, _ = self.collection_mapping_entry(row)
+        return wanted in {
+            self.normalize_category_key(raw),
+            self.normalize_category_key(canonical),
+        }
+
+    def product_type_for_row(self, row: dict[str, Any] | None) -> str:
+        """Return the Shopify product type for the mapped Upload Saree category."""
+        canonical, _ = self.collection_mapping_entry(row)
+        _, mapping = self.collection_mapping_entry(row)
+        if mapping and visible(mapping.get("product_type")):
+            return visible(mapping["product_type"])
+        if self.normalize_category_key(canonical) == self.normalize_category_key("Dupattas"):
+            return "Dupatta"
+        return self.config["product_type"]
+
+    def tag_limit_for_row(self, row: dict[str, Any] | None) -> int:
+        _, mapping = self.collection_mapping_entry(row)
+        try:
+            configured = int((mapping or {}).get("max_tags") or self.max_clean_tags)
+        except (TypeError, ValueError):
+            configured = self.max_clean_tags
+        return max(self.max_clean_tags, configured) if mapping and mapping.get("fixed_tags") else min(self.max_clean_tags, configured)
 
     def validate_run_scope(self) -> None:
         if self.max_products is None and not self.confirm_full_sync:
@@ -1459,11 +1556,19 @@ class UploadSareeCreator:
         return visible(collection["title"]), collection
 
     def get_collection_id_by_title(self, title: str) -> str:
+        self._ensure_runtime_caches()
+        key = title.casefold().strip()
+        with self._cache_lock:
+            cached = self._collection_id_cache.get(key)
+        if cached:
+            return cached
         collection_id = self.shopify.get_collection_id_by_title(title)
         if not collection_id:
             if title.casefold() == self.new_arrivals_collection_name.casefold():
                 raise ShopifyError("new_arrivals_collection_not_found")
             raise ShopifyError(f"collection_not_found:{title}")
+        with self._cache_lock:
+            self._collection_id_cache[key] = collection_id
         return collection_id
 
     def assign_and_verify_required_collections(
@@ -1495,7 +1600,70 @@ class UploadSareeCreator:
             "New Arrivals Assigned": "disabled",
             "New Arrivals Already Assigned": "no",
             "New Arrivals Error": "",
+            "Additional Collections": "",
+            "Additional Collections Assigned": "disabled",
+            "Additional Collections Already Assigned": "",
+            "Additional Collections Error": "",
         }
+        mapping = None
+        if hasattr(self, "fields") and hasattr(self, "collection_map"):
+            _, mapping = self.collection_mapping_entry(row)
+        additional_collections = [
+            item
+            for item in ((mapping or {}).get("additional_collections") or [])
+            if isinstance(item, dict)
+        ]
+        if additional_collections:
+            assigned_titles: list[str] = []
+            already_titles: list[str] = []
+            try:
+                for configured in additional_collections:
+                    collection_id = visible(configured.get("id"))
+                    collection_title = visible(configured.get("title"))
+                    if not collection_id and collection_title:
+                        collection_id = self.get_collection_id_by_title(collection_title)
+                    if not collection_id:
+                        raise ShopifyError(
+                            f"additional_collection_id_missing:{collection_title}"
+                        )
+                    assigned, already = self.shopify.ensure_product_in_collection(
+                        product_id, collection_id
+                    )
+                    (assigned_titles if assigned else already_titles).append(
+                        collection_title or collection_id
+                    )
+                memberships = self.shopify.product_collection_ids(product_id)
+                missing = [
+                    visible(item.get("title")) or visible(item.get("id"))
+                    for item in additional_collections
+                    if visible(item.get("id")) not in memberships
+                ]
+                if missing:
+                    raise ShopifyError(
+                        "additional_collection_membership_missing:"
+                        + ",".join(missing)
+                    )
+                details.update(
+                    {
+                        "Additional Collections": " | ".join(
+                            visible(item.get("title")) or visible(item.get("id"))
+                            for item in additional_collections
+                        ),
+                        "Additional Collections Assigned": "yes"
+                        if assigned_titles
+                        else "no",
+                        "Additional Collections Already Assigned": " | ".join(
+                            already_titles
+                        ),
+                    }
+                )
+            except Exception as exc:
+                details["Additional Collections Error"] = (
+                    f"{type(exc).__name__}: {exc}"
+                )
+                raise ShopifyError(
+                    f"additional_collection_assignment_failed: {exc}"
+                ) from exc
         if not self.add_new_arrivals:
             return details
         details["New Arrivals Assignment Attempted"] = "yes"
@@ -1535,6 +1703,11 @@ class UploadSareeCreator:
             self.state.existing_shopify_titles += 1
 
     def find_duplicates(self, sku: str, handle: str, title: str) -> tuple[str, dict[str, Any] | None]:
+        self._ensure_runtime_caches()
+        cache_key = (sku.casefold(), handle.casefold(), title.casefold())
+        with self._cache_lock:
+            if cache_key in self._duplicate_cache:
+                return self._duplicate_cache[cache_key]
         q = """query($sku:String!,$handle:String!,$title:String!){
           variants:productVariants(first:10,query:$sku){nodes{sku product{id title handle}}}
           handles:products(first:10,query:$handle){nodes{id title handle}}
@@ -1550,18 +1723,30 @@ class UploadSareeCreator:
         )
         sku_matches = [node for node in data["variants"]["nodes"] if visible(node.get("sku")) == sku]
         if sku_matches:
-            return "existing_sku", sku_matches[0]["product"]
+            result = ("existing_sku", sku_matches[0]["product"])
+            with self._cache_lock:
+                self._duplicate_cache[cache_key] = result
+            return result
         handle_matches = [
             node for node in data["handles"]["nodes"] if visible(node.get("handle")).casefold() == handle.casefold()
         ]
         if handle_matches:
-            return "existing_handle", handle_matches[0]
+            result = ("existing_handle", handle_matches[0])
+            with self._cache_lock:
+                self._duplicate_cache[cache_key] = result
+            return result
         title_matches = [
             node for node in data["titles"]["nodes"] if visible(node.get("title")).casefold() == title.casefold()
         ]
         if title_matches:
-            return "possible_duplicate_title", title_matches[0]
-        return "", None
+            result = ("possible_duplicate_title", title_matches[0])
+            with self._cache_lock:
+                self._duplicate_cache[cache_key] = result
+            return result
+        result = ("", None)
+        with self._cache_lock:
+            self._duplicate_cache[cache_key] = result
+        return result
 
     def build_safe_product_content_fallback(
         self, row: dict[str, Any], sku: str
@@ -1804,12 +1989,27 @@ class UploadSareeCreator:
             )
         normalized_source = self.normalize_category_key(source)
         _, mapping = self.collection_mapping_entry(row)
+        fixed_tags = [visible(tag) for tag in ((mapping or {}).get("fixed_tags") or []) if visible(tag)]
+        if fixed_tags:
+            tags: list[str] = []
+            seen: set[str] = set()
+            for candidate in fixed_tags:
+                key = candidate.casefold()
+                if key and ":" not in candidate and key not in seen:
+                    seen.add(key)
+                    tags.append(candidate)
+            return tags[: self.tag_limit_for_row(row)]
         category_tag = visible(
             (mapping or {}).get("primary_tag")
             or (mapping or {}).get("canonical_name")
             or (mapping or {}).get("category_tag")
         )
-        candidates: list[str] = [category_tag, "Saree"]
+        additional_tags = [
+            visible(tag) for tag in ((mapping or {}).get("additional_tags") or [])
+            if visible(tag)
+        ]
+        additional_tag_keys = {tag.casefold() for tag in additional_tags}
+        candidates: list[str] = [category_tag, *additional_tags, "Saree"]
         candidates.extend(visible(tag) for tag in (ai_tags or []))
         tags: list[str] = []
         seen: set[str] = set()
@@ -1818,7 +2018,7 @@ class UploadSareeCreator:
             key = candidate.casefold()
             if not candidate or ":" in candidate or key in seen:
                 continue
-            if key not in {category_tag.casefold(), "saree"}:
+            if key not in {category_tag.casefold(), "saree", *additional_tag_keys}:
                 significant = [
                     token
                     for token in re.findall(r"[a-z0-9]+", key)
@@ -1830,7 +2030,7 @@ class UploadSareeCreator:
                     continue
             seen.add(key)
             tags.append(candidate)
-            if len(tags) >= self.max_clean_tags:
+            if len(tags) >= self.tag_limit_for_row(row):
                 break
         return tags
 
@@ -1855,7 +2055,7 @@ class UploadSareeCreator:
             "handle": handle,
             "descriptionHtml": ai["description_html"],
             "vendor": self.config["vendor"],
-            "productType": self.config["product_type"],
+            "productType": self.product_type_for_row(row),
             "status": "DRAFT",
             "tags": tags,
             "seo": {
@@ -2507,6 +2707,10 @@ class UploadSareeCreator:
         images: list[dict[str, str]],
         baserow_row_id: Any = "",
     ) -> list[dict[str, Any]]:
+        if getattr(self, "fast_sync", False):
+            return self._upload_product_images_fast(
+                product_id, sku, title, front_alt, images, baserow_row_id
+            )
         quality_rows: list[dict[str, Any]] = []
         for index, image in enumerate(images):
             alt = self.image_alt_text(sku, title, front_alt, image, index)
@@ -2660,6 +2864,86 @@ class UploadSareeCreator:
             quality_rows.append(record)
         return quality_rows
 
+    def _upload_product_images_fast(
+        self, product_id: str, sku: str, title: str, front_alt: str,
+        images: list[dict[str, str]], baserow_row_id: Any = "",
+    ) -> list[dict[str, Any]]:
+        """Submit missing media with bounded concurrency and batch READY polling."""
+        existing = self.get_product_media(product_id, refresh=True)
+        by_alt = {visible(node.get("alt")): node for node in existing}
+        by_source = {
+            str((node.get("originalSource") or {}).get("url") or "").split("?", 1)[0].casefold(): node
+            for node in existing if (node.get("originalSource") or {}).get("url")
+        }
+        rows: list[dict[str, Any]] = []
+        pending: list[tuple[int, dict[str, str], str]] = []
+        for index, image in enumerate(images):
+            alt = self.image_alt_text(sku, title, front_alt, image, index)
+            duplicate = by_alt.get(alt) or by_source.get(str(image["url"]).split("?", 1)[0].casefold())
+            if duplicate:
+                rows.append({
+                    "Image field": image["label"], "Image Field": image["label"],
+                    "Media Role": image.get("role", ""), "Baserow Row ID": baserow_row_id,
+                    "Product Code": sku, "Source URL": image["url"],
+                    "Selected Source Type": "file_obj.url", "Upload mode": "duplicate_skipped",
+                    "Shopify media ID": duplicate["id"], "Shopify Media ID": duplicate["id"],
+                    "Media READY yes/no": "yes" if duplicate.get("status") == "READY" else "no",
+                    "Shopify Media Status": duplicate.get("status") or "",
+                    "Front View First": "", "Error": "",
+                })
+            else:
+                pending.append((index, image, alt))
+
+        def submit(item: tuple[int, dict[str, str], str]) -> dict[str, Any]:
+            index, image, alt = item
+            source, record = self.prepare_media_source(image, force_stage=False)
+            record.update({"Baserow Row ID": baserow_row_id, "Product Code": sku,
+                           "Media Role": image.get("role", "")})
+            try:
+                media_id = self.create_single_media(product_id, source, alt)
+            except Exception:
+                if not (record.get("Upload mode") in {"external_original_url", "external_url"} and self.exact_file_fallback):
+                    raise
+                source, record = self.prepare_media_source(image, force_stage=True)
+                record.update({"Baserow Row ID": baserow_row_id, "Product Code": sku,
+                               "Media Role": image.get("role", "")})
+                media_id = self.create_single_media(product_id, source, alt)
+                record["Warning"] = "Shopify rejected direct URL; staged fallback used"
+            record["Shopify media ID"] = media_id
+            record["Shopify Media ID"] = media_id
+            record["Media READY yes/no"] = "pending"
+            return record
+
+        if pending:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=self.media_workers) as pool:
+                rows.extend(pool.map(submit, pending))
+        pending_ids = {str(row["Shopify Media ID"]) for row in rows if row.get("Media READY yes/no") == "pending"}
+        ready_nodes: dict[str, dict[str, Any]] = {}
+        deadline = time.monotonic() + 180
+        while pending_ids and time.monotonic() < deadline:
+            for node in self.get_product_media(product_id, refresh=True):
+                node_id = str(node.get("id") or "")
+                if node_id in pending_ids and node.get("status") == "READY":
+                    ready_nodes[node_id] = node
+                elif node_id in pending_ids and node.get("status") == "FAILED":
+                    raise ShopifyError(f"Shopify media processing failed: {node}")
+            pending_ids -= set(ready_nodes)
+            if pending_ids:
+                time.sleep(2)
+        if pending_ids:
+            raise ShopifyError(f"Timed out waiting for media IDs: {sorted(pending_ids)}")
+        for row in rows:
+            media_id = str(row.get("Shopify Media ID") or "")
+            if row.get("Media READY yes/no") == "pending":
+                node = ready_nodes[media_id]
+                row["Media READY yes/no"] = "yes"
+                row["Shopify Media Status"] = "READY"
+                self.verify_media_source(row, node)
+            self.state.image_quality.append(row)
+            if row.get("Compressed yes/no") == "yes":
+                self.state.compressed_images.append(row.copy())
+        return rows
+
     def create_single_media(self, product_id: str, source: str, alt: str) -> str:
         mutation = """mutation($id:ID!,$media:[CreateMediaInput!]!){
           productCreateMedia(productId:$id,media:$media){
@@ -2685,9 +2969,17 @@ class UploadSareeCreator:
         media = result.get("media") or []
         if not media:
             raise ShopifyError("Shopify returned no media after upload")
+        with self._cache_lock:
+            self._media_cache.pop(product_id, None)
         return media[0]["id"]
 
-    def get_product_media(self, product_id: str) -> list[dict[str, Any]]:
+    def get_product_media(self, product_id: str, refresh: bool = False) -> list[dict[str, Any]]:
+        self._ensure_runtime_caches()
+        if not refresh:
+            with self._cache_lock:
+                cached = self._media_cache.get(product_id)
+            if cached is not None:
+                return cached
         query = """query($id:ID!){
           product(id:$id){
             media(first:100){
@@ -2702,7 +2994,10 @@ class UploadSareeCreator:
           }
         }"""
         product = self.shopify.graphql(query, {"id": product_id}).get("product")
-        return product["media"]["nodes"] if product else []
+        nodes = product["media"]["nodes"] if product else []
+        with self._cache_lock:
+            self._media_cache[product_id] = nodes
+        return nodes
 
     def wait_for_media_id(
         self, product_id: str, media_id: str, timeout: int = 180
@@ -2713,7 +3008,7 @@ class UploadSareeCreator:
             last = next(
                 (
                     node
-                    for node in self.get_product_media(product_id)
+                    for node in self.get_product_media(product_id, refresh=True)
                     if node["id"] == media_id
                 ),
                 None,
@@ -2867,6 +3162,8 @@ class UploadSareeCreator:
     def set_front_first(self, product_id: str, front_alt: str) -> None:
         q = "query($id:ID!){product(id:$id){media(first:100){nodes{id alt status}}}}"
         nodes = self.shopify.graphql(q, {"id": product_id})["product"]["media"]["nodes"]
+        with self._cache_lock:
+            self._media_cache[product_id] = nodes
         front = next((node for node in nodes if visible(node.get("alt")) == front_alt), None)
         if not front:
             raise ShopifyError("Front View media was not found after upload")
@@ -2989,7 +3286,10 @@ class UploadSareeCreator:
         return location
 
     def update_product_status_and_tags(
-        self, product_gid: str, tags: list[str] | None
+        self,
+        product_gid: str,
+        tags: list[str] | None,
+        product_type: str | None = None,
     ) -> None:
         product_input: dict[str, Any] = {
             "id": product_gid,
@@ -2997,6 +3297,8 @@ class UploadSareeCreator:
         }
         if tags is not None:
             product_input["tags"] = tags
+        if product_type:
+            product_input["productType"] = product_type
         mutation = """mutation($product:ProductUpdateInput!){
           productUpdate(product:$product){
             product{id status tags}
@@ -3056,7 +3358,7 @@ class UploadSareeCreator:
         return item.get("inventoryLevel") if item else None
 
     def set_inventory_quantity(
-        self, inventory_item_id: str, location: dict[str, Any]
+        self, inventory_item_id: str, location: dict[str, Any], quantity: int
     ) -> bool:
         level = self.get_inventory_level(inventory_item_id, location["id"])
         if level is None:
@@ -3076,8 +3378,8 @@ class UploadSareeCreator:
                 {
                     "inventoryItemId": inventory_item_id,
                     "locationId": location["id"],
-                    "available": self.inventory_quantity,
-                    "onHand": self.inventory_quantity,
+                    "available": quantity,
+                    "onHand": quantity,
                 },
             )["inventoryActivate"]
             if result["userErrors"]:
@@ -3094,7 +3396,7 @@ class UploadSareeCreator:
                     for value in (current_level or {}).get("quantities", [])
                 }
                 current_quantity = current.get(quantity_name)
-                if current_quantity == self.inventory_quantity:
+                if current_quantity == quantity:
                     continue
                 mutation = """mutation($input:InventorySetQuantitiesInput!,$key:String!){
                   inventorySetQuantities(input:$input) @idempotent(key:$key){
@@ -3117,7 +3419,7 @@ class UploadSareeCreator:
                                 {
                                     "inventoryItemId": inventory_item_id,
                                     "locationId": location["id"],
-                                    "quantity": self.inventory_quantity,
+                                    "quantity": quantity,
                                     "changeFromQuantity": current_quantity,
                                 }
                             ],
@@ -3132,8 +3434,8 @@ class UploadSareeCreator:
             for value in (verified or {}).get("quantities", [])
         }
         return (
-            quantities.get("available") == self.inventory_quantity
-            and quantities.get("on_hand") == self.inventory_quantity
+            quantities.get("available") == quantity
+            and quantities.get("on_hand") == quantity
         )
 
     def apply_operational_setup(
@@ -3144,6 +3446,7 @@ class UploadSareeCreator:
         configure_inventory: bool,
         configure_tags: bool,
         ai_tags: list[Any] | None = None,
+        inventory_quantity: int | None = None,
     ) -> dict[str, Any]:
         variants = product.get("variants", {}).get("nodes", [])
         if len(variants) != 1:
@@ -3159,19 +3462,27 @@ class UploadSareeCreator:
             if configure_tags
             else None
         )
-        self.update_product_status_and_tags(product["id"], tags)
+        self.update_product_status_and_tags(
+            product["id"], tags, self.product_type_for_row(row)
+        )
         variant = self.update_variant_operational_settings(
             product["id"], variants[0]["id"], configure_inventory
         )
         location: dict[str, Any] | None = None
         inventory_set = False
+        quantity_warning = ""
+        quantity_resolution = "global_default"
         if configure_inventory:
+            if inventory_quantity is None:
+                inventory_quantity, quantity_resolution, quantity_warning = self.resolve_inventory_quantity(row)
+            else:
+                quantity_resolution = "row_value"
             location = self.resolve_inventory_location()
             inventory_item = variant.get("inventoryItem") or {}
             if self.inventory_tracked and not inventory_item.get("tracked"):
                 raise ShopifyError("Inventory tracking verification failed")
             inventory_set = self.set_inventory_quantity(
-                inventory_item["id"], location
+                inventory_item["id"], location, inventory_quantity
             )
             if not inventory_set:
                 raise ShopifyError("Inventory quantity verification failed")
@@ -3199,13 +3510,22 @@ class UploadSareeCreator:
             "Inventory location name": location["name"] if location else "",
             "Inventory location ID": location["id"] if location else "",
             "Inventory quantity requested": (
-                self.inventory_quantity if configure_inventory else ""
+                inventory_quantity if configure_inventory else ""
             ),
             "Inventory quantity set yes/no": "yes" if inventory_set else "no",
+            "Quantity Score": (
+                visible(self.row_value(row, "Quantity Score"))
+                if row is not None and "Quantity Score" in self.fields
+                else ""
+            ),
+            "Quantity Resolution": quantity_resolution if configure_inventory else "",
+            "Quantity Warning": quantity_warning,
+            "Inventory Quantity Verified": "yes" if inventory_set else "no",
             "Inventory policy": self.inventory_policy,
             "Taxable": "yes" if self.taxable else "no",
             "Tags written": ", ".join(tags or []),
             "Tags count": len(tags or []),
+            "Tag Limit": self.tag_limit_for_row(row),
             **collection_details,
         }
 
@@ -3333,13 +3653,20 @@ class UploadSareeCreator:
         }
         if inventory_item.get("tracked") is not True:
             errors.append("inventory_not_tracked")
-        if quantities.get("available") != 1 or quantities.get("on_hand") != 1:
-            errors.append(f"inventory_not_1:{quantities}")
+        expected_quantity = int(entry.get("Inventory quantity requested") or 1)
+        if (
+            quantities.get("available") != expected_quantity
+            or quantities.get("on_hand") != expected_quantity
+        ):
+            errors.append(
+                f"inventory_not_{expected_quantity}:{quantities}"
+            )
         if variant.get("inventoryPolicy") != "DENY":
             errors.append("inventory_policy_not_deny")
         if variant.get("taxable") is not True:
             errors.append("taxable_not_true")
-        if product and len(product.get("tags") or []) > self.max_clean_tags:
+        expected_tag_limit = int(entry.get("Tag Limit") or self.max_clean_tags)
+        if product and len(product.get("tags") or []) > expected_tag_limit:
             errors.append("tag_count_exceeds_limit")
         collection_ids = {
             str(node.get("id"))
@@ -3581,6 +3908,11 @@ class UploadSareeCreator:
             )
 
     def find_product_for_fix_by_sku(self, sku: str) -> dict[str, Any] | None:
+        self._ensure_runtime_caches()
+        cache_key = sku.casefold()
+        with self._cache_lock:
+            if cache_key in self._sku_cache:
+                return self._sku_cache[cache_key]
         query = """query($q:String!){
           productVariants(first:10,query:$q){
             nodes{sku product{id}}
@@ -3598,7 +3930,10 @@ class UploadSareeCreator:
         )
         if len(exact_ids) > 1:
             raise RuntimeError("multiple_products_for_sku")
-        return self.get_product_for_fix(exact_ids[0]) if exact_ids else None
+        product = self.get_product_for_fix(exact_ids[0]) if exact_ids else None
+        with self._cache_lock:
+            self._sku_cache[cache_key] = product
+        return product
 
     def record_operational_success(self, details: dict[str, Any]) -> None:
         if details.get("Product status") == "ACTIVE":
@@ -3615,7 +3950,7 @@ class UploadSareeCreator:
             self.state.new_arrivals_already_assigned += 1
         tag_count = int(details.get("Tags count") or 0)
         self.state.total_tags_written += tag_count
-        if tag_count > self.max_clean_tags:
+        if tag_count > int(details.get("Tag Limit") or self.max_clean_tags):
             self.state.products_with_more_than_max_tags += 1
 
     def run_direct_product_fix(self) -> int:
@@ -3644,6 +3979,9 @@ class UploadSareeCreator:
             "Images changed": "no",
             "Collections changed": "no",
         }
+        fix_quantity, fix_quantity_resolution, fix_quantity_warning = (
+            self.resolve_inventory_quantity(matching_row)
+        )
         if self.dry_run:
             details = {
                 "Product status": self.product_status,
@@ -3663,9 +4001,16 @@ class UploadSareeCreator:
                     if self.fix_inventory else ""
                 ),
                 "Inventory quantity requested": (
-                    self.inventory_quantity if self.fix_inventory else ""
+                    fix_quantity if self.fix_inventory else ""
                 ),
                 "Inventory quantity set yes/no": "planned",
+                "Quantity Score": (
+                    visible(self.row_value(matching_row, "Quantity Score"))
+                    if matching_row and "Quantity Score" in self.fields else ""
+                ),
+                "Quantity Resolution": fix_quantity_resolution if self.fix_inventory else "",
+                "Quantity Warning": fix_quantity_warning,
+                "Inventory Quantity Verified": "planned" if self.fix_inventory else "",
                 "Inventory policy": self.inventory_policy,
                 "Taxable": "yes" if self.taxable else "no",
                 "Tags written": ", ".join(planned_tags or []),
@@ -3707,6 +4052,8 @@ class UploadSareeCreator:
         )
         seen_skus: set[str] = set()
         for row in candidate_rows:
+            if not self.category_filter_ok(row):
+                continue
             sku = visible(self.row_value(row, "Product Code"))
             generation_before = status(
                 self.row_value(row, "Generation Status")
@@ -3756,6 +4103,9 @@ class UploadSareeCreator:
                     "Collections changed": "no",
                 }
                 if self.dry_run:
+                    row_quantity, quantity_resolution, quantity_warning = (
+                        self.resolve_inventory_quantity(row)
+                    )
                     details = {
                         "Product status": self.product_status,
                         "Online Store publication ID": self.get_publication_id_by_name(
@@ -3765,8 +4115,12 @@ class UploadSareeCreator:
                         "Inventory tracked yes/no": "planned",
                         "Inventory location name": self.resolve_inventory_location()["name"],
                         "Inventory location ID": self.resolve_inventory_location()["id"],
-                        "Inventory quantity requested": self.inventory_quantity,
+                        "Inventory quantity requested": row_quantity,
                         "Inventory quantity set yes/no": "planned",
+                        "Quantity Score": visible(self.row_value(row, "Quantity Score")),
+                        "Quantity Resolution": quantity_resolution,
+                        "Quantity Warning": quantity_warning,
+                        "Inventory Quantity Verified": "planned",
                         "Inventory policy": self.inventory_policy,
                         "Taxable": "yes" if self.taxable else "no",
                         "Tags written": ", ".join(self.clean_tags(row)),
@@ -4270,6 +4624,20 @@ class UploadSareeCreator:
         if self.write_comments and comment:
             values[self.fields["Comment / Notes"]["name"]] = comment[:10000]
         self.baserow.update_row(row_id, values)
+
+    def write_sync_checkpoint(self, sku: str, product_id: str, result: str) -> None:
+        OUTPUT.mkdir(parents=True, exist_ok=True)
+        try:
+            current = json.loads(self._checkpoint_path.read_text(encoding="utf-8")) if self._checkpoint_path.exists() else {}
+        except (OSError, json.JSONDecodeError):
+            current = {}
+        current[str(sku)] = {
+            "Product Code": str(sku), "Shopify Product ID": str(product_id),
+            "result": result, "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+        temporary = self._checkpoint_path.with_suffix(".tmp")
+        temporary.write_text(json.dumps(current, indent=2, sort_keys=True), encoding="utf-8")
+        temporary.replace(self._checkpoint_path)
 
     def restore_baserow_approved(self, row_id: int, comment: str = "") -> None:
         values: dict[str, Any] = {
@@ -5144,6 +5512,31 @@ class UploadSareeCreator:
         self.write_existing_media_outputs(records, stats)
         return 1 if stats["rows_failed"] else 0
 
+    def _prefetch_fast_plan(self, rows: list[dict[str, Any]]) -> None:
+        """Warm SKU and AI caches with conservative bounded worker pools."""
+        candidates: dict[str, dict[str, Any]] = {}
+        for row in rows:
+            if not self.approval_ok(row) or self.missing_required_fields(row):
+                continue
+            if not self.category_filter_ok(row):
+                continue
+            sku = visible(self.row_value(row, "Product Code"))
+            if sku:
+                candidates.setdefault(sku.casefold(), row)
+        if candidates:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=self.product_workers) as pool:
+                list(pool.map(self.find_product_for_fix_by_sku, [visible(self.row_value(row, "Product Code")) for row in candidates.values()]))
+        new_rows = [row for key, row in candidates.items() if self._sku_cache.get(key) is None]
+
+        def make_ai(row: dict[str, Any]) -> tuple[str, dict[str, Any]]:
+            sku = visible(self.row_value(row, "Product Code"))
+            return sku.casefold(), self.generate_ai(row, sku, self.images(row))
+
+        if new_rows and self.openrouter:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=self.ai_workers) as pool:
+                for key, ai in pool.map(make_ai, new_rows):
+                    self._prefetched_ai[key] = ai
+
     def run(self) -> int:
         if self.check_baserow_access:
             return self.run_baserow_access_check()
@@ -5220,12 +5613,16 @@ class UploadSareeCreator:
             "Mode=%s table=Upload Saree (%s) shop=%s max_products=%s",
             "DRY_RUN" if self.dry_run else "LIVE", self.table_id, shop_name, self.max_products,
         )
+        if self.fast_sync:
+            self._prefetch_fast_plan(rows)
         seen_skus: set[str] = set()
         canaries: list[dict[str, Any]] = []
         for row in rows:
             if self.run_cap_reached():
                 break
             record = self.base_record(row)
+            if not self.category_filter_ok(row):
+                continue
             if not self.approval_ok(row):
                 continue
             self.state.approved_rows += 1
@@ -5350,7 +5747,10 @@ class UploadSareeCreator:
                     collection_title, collection = self.resolve_collection_for_plan(row)
                     self.state.collection_success += 1
                     stage = "openrouter"
-                    ai = self.generate_ai(row, sku, images)
+                    # Existing products never need AI regeneration; retain their
+                    # Shopify content and use factual row data only for tags.
+                    ai = self.build_safe_product_content_fallback(row, sku)
+                    ai["_ai_provider"] = "not_called_existing_sku"
                     self.state.attempted += 1
                     ai_record = {
                         **record,
@@ -5363,6 +5763,9 @@ class UploadSareeCreator:
                         "OpenRouter error": ai.get("_openrouter_error", ""),
                     }
                     self.state.ai_rows.append(ai_record)
+                    row_quantity, quantity_resolution, quantity_warning = (
+                        self.resolve_inventory_quantity(row)
+                    )
                     planned = {
                         **record,
                         **media_plan,
@@ -5386,6 +5789,11 @@ class UploadSareeCreator:
                         "New Product Created": "no",
                         "Existing Shopify Product Resumed": "yes",
                         "Shopify Product ID": existing_product["id"],
+                        "Quantity Score": visible(self.row_value(row, "Quantity Score")),
+                        "Inventory quantity requested": row_quantity if self.inventory_tracked else "",
+                        "Quantity Resolution": quantity_resolution if self.inventory_tracked else "",
+                        "Quantity Warning": quantity_warning,
+                        "Inventory Quantity Verified": "planned" if self.inventory_tracked else "",
                     }
                     if self.dry_run:
                         self.state.preview.append({**planned, "Result": "resume_planned"})
@@ -5400,6 +5808,7 @@ class UploadSareeCreator:
                         row["id"],
                         f"Existing Shopify product resumed and verified: {product['id']}",
                     )
+                    self.write_sync_checkpoint(sku, product["id"], "resumed")
                     self.record_operational_success(operational)
                     self.state.resumed += 1
                     self.state.baserow_updated += 1
@@ -5469,7 +5878,7 @@ class UploadSareeCreator:
                 )
                 self.state.collection_success += 1
                 stage = "openrouter"
-                ai = self.generate_ai(row, sku, images)
+                ai = self._prefetched_ai.pop(sku.casefold(), None) or self.generate_ai(row, sku, images)
                 stage = "shopify_duplicate_check_generated_title"
                 post_reason, post_duplicate = self.find_duplicates(sku, handle, ai["title"])
                 if post_reason:
@@ -5496,6 +5905,9 @@ class UploadSareeCreator:
                     "OpenRouter error": ai.get("_openrouter_error", ""),
                 }
                 self.state.ai_rows.append(ai_record)
+                row_quantity, quantity_resolution, quantity_warning = (
+                    self.resolve_inventory_quantity(row)
+                )
                 planned = {
                     **record,
                     **media_plan,
@@ -5532,11 +5944,15 @@ class UploadSareeCreator:
                     "Inventory location name": location["name"] if location else "",
                     "Inventory location ID": location["id"] if location else "",
                     "Inventory quantity requested": (
-                        self.inventory_quantity if self.inventory_tracked else ""
+                        row_quantity if self.inventory_tracked else ""
                     ),
                     "Inventory quantity set yes/no": (
                         "planned" if self.inventory_tracked else "no"
                     ),
+                    "Quantity Score": visible(self.row_value(row, "Quantity Score")),
+                    "Quantity Resolution": quantity_resolution if self.inventory_tracked else "",
+                    "Quantity Warning": quantity_warning,
+                    "Inventory Quantity Verified": "planned" if self.inventory_tracked else "",
                     "Inventory policy": self.inventory_policy,
                     "Taxable": "yes" if self.taxable else "no",
                     "Tags written": ", ".join(
@@ -5596,6 +6012,15 @@ class UploadSareeCreator:
                     "Inventory location ID": operational[
                         "Inventory location ID"
                     ],
+                    "Inventory quantity requested": operational.get(
+                        "Inventory quantity requested", 1
+                    ),
+                    "Quantity Score": operational.get("Quantity Score", ""),
+                    "Quantity Resolution": operational.get(
+                        "Quantity Resolution", ""
+                    ),
+                    "Quantity Warning": operational.get("Quantity Warning", ""),
+                    "Tag Limit": operational.get("Tag Limit", self.max_clean_tags),
                     "Primary Collection": operational["Primary Collection"],
                     "Primary Collection ID": operational["Primary Collection ID"],
                     "Primary Collection Assigned": operational[
@@ -5632,6 +6057,7 @@ class UploadSareeCreator:
                     row["id"],
                     f"Shopify product created and verified: {product['id']}",
                 )
+                self.write_sync_checkpoint(sku, product["id"], "created")
                 stage = "persistence_immediate"
                 immediate = self.verify_product_persistence(
                     persistence_entry,
@@ -5850,7 +6276,16 @@ class UploadSareeCreator:
     def write_outputs(self) -> None:
         OUTPUT.mkdir(parents=True, exist_ok=True)
         self.write_taxonomy_outputs()
-        base = ["Row ID", "Product Code", "Source Title"]
+        base = [
+            "Row ID",
+            "Product Code",
+            "Source Title",
+            "Quantity Score",
+            "Inventory quantity requested",
+            "Quantity Resolution",
+            "Quantity Warning",
+            "Inventory Quantity Verified",
+        ]
         resolution_fields = [
             "Baserow Row ID",
             "Product Code",
@@ -6050,7 +6485,7 @@ class UploadSareeCreator:
             f"{self.state.products_online_store_published}",
             "Online Store publish failures: "
             f"{self.state.online_store_publish_failures}",
-            f"Inventory set to 1: {self.state.inventory_set_to_quantity}",
+            f"Inventory quantities set and verified: {self.state.inventory_set_to_quantity}",
             f"Inventory set failures: {self.state.inventory_set_failures}",
             f"Location not found failures: {self.state.location_not_found_failures}",
             "Average tags per product: "

@@ -209,6 +209,64 @@
       "shopify_collection_id": "gid://shopify/Collection/343287234758",
       "shopify_collection_title": "Linen and Silk Sarees",
       "primary_tag": "Linen & Kota Silk"
+    },
+    {
+      "canonical_name": "Dupattas",
+      "parent_group": "Accessories",
+      "aliases": ["Dupatta", "Dupattas"],
+      "shopify_collection_id": "gid://shopify/Collection/339913638086",
+      "shopify_collection_title": "Dupattas",
+      "primary_tag": "Dupattas",
+      "additional_tags": ["Accessories"],
+      "additional_collections": [
+        {
+          "id": "gid://shopify/Collection/339913277638",
+          "title": "Accessories"
+        }
+      ]
+    },
+    {
+      "canonical_name": "Fancy Sarees",
+      "parent_group": "Fancy & Everyday",
+      "aliases": ["Fancy Saree", "Fancy Sarees"],
+      "shopify_collection_id": "gid://shopify/Collection/352494649542",
+      "shopify_collection_title": "Fancy Sarees",
+      "primary_tag": "Fancy Sarees",
+      "additional_collections": [
+        {
+          "id": "gid://shopify/Collection/350149148870",
+          "title": "Daily Buys"
+        }
+      ]
+    },
+    {
+      "canonical_name": "Silk Pavada",
+      "parent_group": "Kids Wear",
+      "aliases": ["Silk Pavada", "Pattu Pavadai"],
+      "shopify_collection_id": "gid://shopify/Collection/352781140166",
+      "shopify_collection_title": "Silk Pavada",
+      "primary_tag": "Silk Pavada",
+      "product_type": "Kids Wear",
+      "max_tags": 17,
+      "fixed_tags": [
+        "Silk Pavada",
+        "Pattu Pavadai",
+        "Kids Wear",
+        "Girls Ethnic Wear",
+        "Traditional Wear",
+        "South Indian Wear",
+        "Silk Dress",
+        "Festive Wear",
+        "Wedding Wear",
+        "Temple Wear",
+        "Indian Ethnic Wear",
+        "Kids Silk Wear",
+        "Silk",
+        "Festive",
+        "Wedding",
+        "Traditional",
+        "South Indian"
+      ]
     }
   ]
 }
